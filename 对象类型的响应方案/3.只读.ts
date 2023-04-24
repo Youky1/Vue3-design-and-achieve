@@ -65,15 +65,21 @@ function effect(fn: Function, options: Options = {}) {
   return effectFn
 }
 
-function reactive(data: Object): any {
+function createReactive(data: Object, isShallow = false, isReadonly = false) {
   return new Proxy(data, {
     // 拦截属性读取
     get(target, key, receiver) {
       if (key === RAW_KEY) {
         return target
       }
-      track(target, key)
-      return Reflect.get(target, key, receiver)
+      const res = Reflect.get(target, key, receiver)
+      if (!isReadonly) {
+        track(target, key)
+      }
+      if (!isShallow && res && typeof res === "object") {
+        return isReadonly ? readonly(res) : reactive(res)
+      }
+      return res
     },
     // 拦截 in 操作符
     has(target, key) {
@@ -86,6 +92,10 @@ function reactive(data: Object): any {
       return Reflect.ownKeys(target)
     },
     set(target, key, value, receiver) {
+      if (isReadonly) {
+        console.warn(`${String(key)} is readonly`)
+        return true
+      }
       const type = Reflect.has(target, key) ? "SET" : "ADD"
       const oldValue = Reflect.get(target, key)
       const res = Reflect.set(target, key, value, receiver)
@@ -98,6 +108,10 @@ function reactive(data: Object): any {
       return res
     },
     deleteProperty(target, key) {
+      if (isReadonly) {
+        console.warn(`${String(key)} is readonly`)
+        return true
+      }
       const isDelete = Reflect.has(target, key)
       const res = Reflect.deleteProperty(target, key)
       if (isDelete) {
@@ -107,6 +121,18 @@ function reactive(data: Object): any {
     }
   })
 }
-effect(() => {
-  console.log(obj)
-})
+
+function reactive(data: Object) {
+  return createReactive(data)
+}
+
+function shallowReactive(data: Object) {
+  return createReactive(data, true)
+}
+
+function readonly(obj: Object) {
+  return createReactive(obj, false, true)
+}
+function shallowReadonly(obj: Object) {
+  return createReactive(obj, true, true)
+}

@@ -65,15 +65,19 @@ function effect(fn: Function, options: Options = {}) {
   return effectFn
 }
 
-function reactive(data: Object): any {
+function createReactive(data: Object, isShallow = false) {
   return new Proxy(data, {
     // 拦截属性读取
     get(target, key, receiver) {
       if (key === RAW_KEY) {
         return target
       }
+      const res = Reflect.get(target, key, receiver)
       track(target, key)
-      return Reflect.get(target, key, receiver)
+      if (!isShallow && res && typeof res === "object") {
+        return reactive(res)
+      }
+      return res
     },
     // 拦截 in 操作符
     has(target, key) {
@@ -107,6 +111,11 @@ function reactive(data: Object): any {
     }
   })
 }
-effect(() => {
-  console.log(obj)
-})
+
+function reactive(data: Object) {
+  return createReactive(data)
+}
+
+function shallowReactive(data: Object) {
+  return createReactive(data, true)
+}
